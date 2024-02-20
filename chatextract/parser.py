@@ -1,16 +1,21 @@
+"""Base parser for Whatsapp chat txt data."""
 import json
 import logging
 import os
 import re
 import sys
 from typing import List, Tuple
-from .models import ChatMessageEntry, UserData, WhatsappChatLog
 
+from .models import ChatMessageEntry, UserData, WhatsappChatLog
 
 logger = logging.getLogger(__name__)
 
+
 class TextParser:
+    """Text parser class implementation."""
+
     def __init__(self, filepath: str):
+        """Create a TextParser instance."""
         # Initialize and validate the file
         self.__filepath = os.path.abspath(filepath)
         self.__contents = []
@@ -23,9 +28,13 @@ class TextParser:
         # Read file contents
         try:
             with open(self.__filepath, "r") as chat_file:
-                print(f"Read {len(self.__contents)} from file '{filepath}'")
+                logger.debug(
+                    f"Read {len(self.__contents)} lines from file '{filepath}'"
+                )
                 self.__contents = chat_file.readlines()
-                self.__chat_members, self.__chat_messages = self.__read_text_data(self.__contents)
+                self.__chat_members, self.__chat_messages = self.__read_text_data(
+                    self.__contents
+                )
 
             logger.debug(f"Read {len(self.__chat_messages)} from file.")
 
@@ -34,8 +43,10 @@ class TextParser:
             sys.exit(1)
 
     @staticmethod
-    def __read_text_data(lines: List[str]) -> Tuple[List[UserData], List[ChatMessageEntry]]:
-        """Read file lines and parse into ChatMessage data
+    def __read_text_data(
+        lines: List[str],
+    ) -> Tuple[List[UserData], List[ChatMessageEntry]]:
+        """Read file lines and parse into ChatMessage data.
 
         Args:
             lines (List[str]): Text lines data
@@ -43,7 +54,9 @@ class TextParser:
         Returns:
             List[ChatMessage]: Compiled list of parsed data
         """
-        REGEX_PATTERN = r"\[(\d{4}/\d{2}/\d{2}), (\d{1,2}:\d{2}:\d{2})\s*(AM|PM)?\]\s*(.*?):\s*(.*)"
+        regex_pattern = (
+            r"\[(\d{4}/\d{2}/\d{2}), (\d{1,2}:\d{2}:\d{2})\s*(AM|PM)?\]\s*(.*?):\s*(.*)"
+        )
         data = []
         members = []
         user_dataclasses = []
@@ -57,7 +70,7 @@ class TextParser:
                 if "omitted" in line:
                     media_count += 1
                     continue
-                match = re.match(REGEX_PATTERN, line)
+                match = re.match(regex_pattern, line)
                 if match is not None and match.start() == 0:
                     date = match.group(1)
                     time = match.group(2)
@@ -67,12 +80,14 @@ class TextParser:
                     if all((date, time, sender, text)):
                         if sender not in members:
                             members.append(sender)
-                        data.append(ChatMessageEntry(
-                            date=date.replace("/", "-"),
-                            time=f"{time} {am_pm}",
-                            sender=sender,
-                            text=text
-                        ))
+                        data.append(
+                            ChatMessageEntry(
+                                date=date.replace("/", "-"),
+                                time=f"{time} {am_pm}",
+                                sender=sender,
+                                text=text,
+                            )
+                        )
 
             member_data = {member: [] for member in members}
             for member in member_data.keys():
@@ -82,16 +97,45 @@ class TextParser:
 
             members_listed = " and ".join(members)
             logger.debug(f"{media_count} lines skipped due to media content.")
-            print(f"Read {len(data):,} lines for chat history between {members_listed}.")
+            print(f"Read {len(data):,} lines for chat history between {members_listed}")
             return user_dataclasses, data
 
         except Exception as e:
             raise RuntimeError(f"Failed to parse: {e}") from e
 
     def filter_by_key(self, keyword: str):
-        messages_with_keyword = [msg for msg in self.__chat_messages if keyword in msg.text.lower()]
+        """Filter through messages to get count of messages containing keyword.
+
+        Args:
+            keyword (str): Keyword to search for in messages
+        """
+        messages_with_keyword = [
+            msg for msg in self.__chat_messages if keyword in msg.text.lower()
+        ]
         count = len(messages_with_keyword)
-        print(f"Messages with keyword '{keyword}': {count} ({100*(count/len(self.__chat_messages)):.2f}% of messages)")
+        print(
+            f"Messages with keyword '{keyword}': {count:,} "
+            + f"({100*(count/len(self.__chat_messages)):.2f}% of messages)"
+        )
+
+    def filter_by_person(self, name: str) -> None:
+        """Filter through messages to get count of messages sent by user.
+
+        Args:
+            keyword (str): User to search for in messages
+        """
+        messages_by_person = [msg for msg in self.__chat_messages if name in msg.sender]
+        count = len(messages_by_person)
+        usernames = [
+            member.name for member in self.__chat_members if name in member.name
+        ]
+        if not usernames:
+            raise ValueError(f"No user with '{name}' in name.")
+        username = usernames.pop()
+        print(
+            f"User '{username}' sent {len(messages_by_person):,} messages "
+            + f"({100*(count/len(self.__chat_messages)):.2f}% of messages)"
+        )
 
     def export_json(self) -> None:
         """Export the JSON representation of the chat data."""
@@ -109,7 +153,7 @@ class TextParser:
                 end=end_date,
                 length=len(self.__chat_messages),
                 users=self.__chat_members,
-                entries=self.__chat_messages
+                entries=self.__chat_messages,
             )
             with open(full_file_path, "w") as json_data:
                 json.dump(data.to_dict(), json_data, indent=4)

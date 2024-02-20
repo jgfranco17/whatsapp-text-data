@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import sys
@@ -6,10 +7,11 @@ from typing import List, Tuple
 from .models import ChatMessageEntry, UserData, WhatsappChatLog
 
 
+logger = logging.getLogger(__name__)
+
 class TextParser:
-    def __init__(self, filepath: str, verbose: bool = False):
+    def __init__(self, filepath: str):
         # Initialize and validate the file
-        self.__verbose = verbose
         self.__filepath = os.path.abspath(filepath)
         self.__contents = []
         if not os.path.exists(self.__filepath):
@@ -21,21 +23,18 @@ class TextParser:
         # Read file contents
         try:
             with open(self.__filepath, "r") as chat_file:
-                if self.__verbose:
-                    print(f"Read {len(self.__contents)} from file '{filepath}'")
-
+                print(f"Read {len(self.__contents)} from file '{filepath}'")
                 self.__contents = chat_file.readlines()
-                self.__chat_members, self.__chat_messages = self.__read_text_data(self.__contents, verbose=self.__verbose)
+                self.__chat_members, self.__chat_messages = self.__read_text_data(self.__contents)
 
-            if self.__verbose:
-                print(f"Read {len(self.__chat_messages)} from file.")
+            logger.debug(f"Read {len(self.__chat_messages)} from file.")
 
         except Exception as e:
             print(f"Failed to initialize chat parser: {e}")
             sys.exit(1)
 
     @staticmethod
-    def __read_text_data(lines: List[str], verbose: bool = False) -> Tuple[List[UserData], List[ChatMessageEntry]]:
+    def __read_text_data(lines: List[str]) -> Tuple[List[UserData], List[ChatMessageEntry]]:
         """Read file lines and parse into ChatMessage data
 
         Args:
@@ -80,10 +79,10 @@ class TextParser:
                 member_data[member] = [msg.text for msg in data if msg.sender == member]
             for name, chats in member_data.items():
                 user_dataclasses.append(UserData(name=name, messages=chats))
-            if verbose:
-                members_listed = " and ".join(members)
-                print(f"{media_count} lines skipped due to media content.")
-                print(f"Read {len(data):,} lines for chat history between {members_listed}.")
+
+            members_listed = " and ".join(members)
+            logger.debug(f"{media_count} lines skipped due to media content.")
+            print(f"Read {len(data):,} lines for chat history between {members_listed}.")
             return user_dataclasses, data
 
         except Exception as e:
@@ -114,8 +113,7 @@ class TextParser:
             )
             with open(full_file_path, "w") as json_data:
                 json.dump(data.to_dict(), json_data, indent=4)
-                if self.__verbose:
-                    print(f"Wrote chat to '{filename}'")
+                print(f"Wrote chat to '{filename}'")
 
         except Exception as e:
             print(f"Failed to export JSON data: {e}")

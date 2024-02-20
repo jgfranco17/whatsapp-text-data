@@ -1,19 +1,20 @@
 import click
 import logging
-from .parser import TextParser
+from .parse import parse
+from .search import search
 
 
-@click.command("parse")
-@click.option("--file", "-f", type=str, required=True, help="Path to the input text file.")
-@click.option("-v", "--verbose", is_flag=True, help="Enable verbose output.")
-@click.option("--export", is_flag=True, help="Export JSON data.")
-def parse(file, verbose, export):
-    """Run the Whatsapp parser."""
-    chat_parser = TextParser(filepath=file, verbose=verbose)
-    chat_parser.filter_by_key("haha")
-    if export:
-        chat_parser.export_json()
+root_logger_verbosity = [
+    logging.WARN,
+    logging.INFO,
+    logging.DEBUG,
+]
 
+logger = logging.getLogger(__name__)
+logging.Formatter(
+    "%(asctime)s %(name)s [%(levelname)8s] %(message)s", 
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
 
 @click.group()
 @click.pass_context
@@ -26,8 +27,10 @@ def parse(file, verbose, export):
 @click.version_option()
 def cli(context: click.Context, verbose: int) -> None:
     """Whatsapp Parser CLI."""
-    logging.getLogger().setLevel(logging.INFO)
+    stf_cli_logger = logging.getLogger(__package__)
+    stf_cli_logger.setLevel(logging.DEBUG+verbose)
     context.ensure_object(dict)
 
 
 cli.add_command(parse)
+cli.add_command(search)
